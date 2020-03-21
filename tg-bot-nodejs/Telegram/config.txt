@@ -1,0 +1,2 @@
+tg-bot:
+    token: 1143399778:AAFEzQt5NF_ePZ41l97PD7oeHzF7JdFoiso
