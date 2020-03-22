@@ -1,78 +1,116 @@
 'use strict';
 
 const TelegramBot = require('node-telegram-bot-api');
-
-// replace the value below with the Telegram token you receive from @BotFather
 const token = '1143399778:AAFEzQt5NF_ePZ41l97PD7oeHzF7JdFoiso';
-
-// Create a bot that uses 'polling' to fetch new updates
-const bot = new TelegramBot(token, {polling: true});
-
-// Контекст последнего сообщения.
-let lastMessageContex = null;
-
-// Если это первое сообщение в сессии пользователя, то
-// в сообщении нужно поздороваться.
-const isFirstMessageOnSession = true;
+const bot = new TelegramBot(token, {
+    polling: true
+});
 
 // Объекты с колекциями (ответы бота и тд).
 const collections = require('./collections.js');
 const emoji = collections.emoji();
 const botResponse = collections.botResponse();
 
-// Listen for any kind of message. There are different kinds of
-// messages.
+// Контекст последнего сообщения.
+let lastMessageContext;
+
+// Если это первое сообщение в сессии пользователя, то
+// в сообщении нужно поздороваться.
+let isFirstMessageOnSession = true;
+
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
+    const msgText = msg.text;
     let sendMsg = '';
 
-    // send a message to the chat acknowledging receipt of their message
-    // 1. Если сообщение состоит только из 1 смайлика.
-    if(!onlyOneSmileOnMessageChecker(msg.text))
-        return;
+    console.log("msg.text: " + msg.text);
 
-    // 2. Проверяем наличие контекста предыдущего сообщения.
-    if(lastMessageContex === null)
+    if(!isCorrectMessageChecker(msgText))
     {
-        // 2.1. Храним тип предыдущего сообщения по настроению: Грусть, Радость, Буйство.
-        // Т.к. его нет храним первое сообщение.
-        lastMessageContex = typeOfSmileToContex(msg.text, emoji);
-        // 2.2.  Первое сообщение в сессии => нужно поздороваться.
+        return;
+    }
+
+    if(isFirstMessageOnSession)
+    {
+        lastMessageContext = emoji.smile.type;
+        isFirstMessageOnSession = false;
         sendMsg = botResponse.hello;
     }
 
-    switch (lastMessageContex) {
-            // smile
-        case typesOfEmoji[0]:
-            sendMsg += getMessageWithContex(typesOfEmoji[0], lastMessageContex);
-            break;
-            // sad
-        case typesOfEmoji[1]:
-            sendMsg += getMessageWithContex(typesOfEmoji[1], lastMessageContex);
-            break;
-            // rage
-        case typesOfEmoji[2]:
-            sendMsg += getMessageWithContex(typesOfEmoji[2], lastMessageContex);
-            break;
-        default:
-            console.log(lastMessageContex);
-            break;
+    try {
+        sendMsg += getResponseOnContext(msgText, lastMessageContext);
     }
-
+    catch (e) {
+        console.log("Error: " + e.text + "->" + e.message);
+        sendMsg = "Бот немного устал...";
+    }
+    console.log("sendMsg: " +  sendMsg);
     bot.sendMessage(chatId, sendMsg);
 });
 
-// Определение типа смайла: Грусть, Радость, Буйство.
-function typeOfSmileToContex(text, emoji) {
-    let type = "";
-    // Если смайл есть в коллекции, то это его тип.
-    return type;
+// Переписать caseы на циклы, потому что сейчас они все одинаковые и независят от контекста.
+function getResponseOnContext(text, lastMessageType) {
+    console.log("getResponseOnContext text: " + text);
+    // В зависимости от контекста нужно выбрать ответ.
+    // Есть контекст предыдущего сообщения и текущее сообщение.
+    switch (lastMessageType) {
+        case emoji.smile.type:
+            // Smile -> smile.
+            if (emoji.smile.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.smile.type;
+                return botResponse.smile.ifSmileMore;
+            }
+            // Smile -> sad.
+            if (emoji.sad.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.smile.type;
+                return botResponse.smile.ifSmileToSad;
+            }
+            // Smile -> rage.
+            if (emoji.rage.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.smile.type;
+                return botResponse.smile.ifSmileToRage;
+            }
+            break;
+        case emoji.rage.type:
+            // Rage -> smile.
+            if (emoji.smile.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.rage.type;
+                return botResponse.rage.ifRageToSmile;
+            }
+            // Rage -> sad.
+            if (emoji.sad.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.rage.type;
+                return  botResponse.rage.ifRageToSad;
+            }
+            // Rage -> rage.
+            if (emoji.rage.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.rage.type;
+                return botResponse.rage.ifRageMore;
+            }
+            break;
+        case emoji.sad.type:
+            // Sad -> smile.
+            if (emoji.smile.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.sad.type;
+                return botResponse.sad.ifSadToSmile;
+            }
+            // Sad -> sad.
+            if (emoji.sad.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.sad.type;
+                return botResponse.sad.ifSadMore;
+            }
+            // Sad -> rage.
+            if (emoji.rage.items.indexOf(text, 0) > -1) {
+                lastMessageContext = emoji.sad.type;
+                return botResponse.sad.ifSadToRage;
+            }
+            break;
+        default:
+            break;
+    }
+    // Нужно вернуть текстовый ответ.
+    return result;
 }
-
-function onlyOneSmileOnMessageChecker(text) {
+function isCorrectMessageChecker(messageText) {
     return true;
-}
-
-function getMessageWithContex(type, contex) {
-    return '';
 }
