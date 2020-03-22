@@ -1,4 +1,8 @@
 module.exports = {
+    botCommands:function()
+    {
+        return ['/stats'];
+    },
     // Ответы бота.
     botResponse:function()
     {

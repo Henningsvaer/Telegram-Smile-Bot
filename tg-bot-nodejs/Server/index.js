@@ -10,6 +10,10 @@ const bot = new TelegramBot(token, {
 const collections = require('./collections.js');
 const emoji = collections.emoji();
 const botResponse = collections.botResponse();
+const botCommands = collections.botCommands();
+
+// Функции работы с бд.
+const mysql = require('./mysql');
 
 // Контекст последнего сообщения.
 let lastMessageContext;
@@ -23,13 +27,7 @@ bot.on('message', (msg) => {
     const msgText = msg.text;
     let sendMsg = '';
 
-    console.log("msg.text: " + msg.text);
-
-    if(!isCorrectMessageChecker(msgText))
-    {
-        return;
-    }
-
+    // Начало сессии.
     if(isFirstMessageOnSession)
     {
         lastMessageContext = emoji.smile.type;
@@ -38,79 +36,94 @@ bot.on('message', (msg) => {
     }
 
     try {
-        sendMsg += getResponseOnContext(msgText, lastMessageContext);
+        const result = getResponseOnContext(msgText, lastMessageContext);
+        // Если сообщение undefined.
+        if(result[0] === undefined)
+        {
+            throw new Error();
+        }
+
+        sendMsg += result[0];
+        lastMessageContext = result[1];
     }
     catch (e) {
+        if (botCommands.indexOf(msgText, 0) > -1)
+            return;
+
         console.log("Error: " + e.text + "->" + e.message);
-        sendMsg = "Бот немного устал...";
+        sendMsg = botResponse.iDontUnderstand;
+        isFirstMessageOnSession = true;
     }
-    console.log("sendMsg: " +  sendMsg);
     bot.sendMessage(chatId, sendMsg);
 });
 
-// Переписать caseы на циклы, потому что сейчас они все одинаковые и независят от контекста.
+// Команды для работы со статистикой.
+bot.onText(/\/stats/, (msg) => {
+    const chatId = msg.chat.id;
+
+    // send back the matched "whatever" to the chat
+    bot.sendMessage(chatId,"stats");
+});
+
 function getResponseOnContext(text, lastMessageType) {
-    console.log("getResponseOnContext text: " + text);
+    let newMessageContext;
+    let result;
     // В зависимости от контекста нужно выбрать ответ.
     // Есть контекст предыдущего сообщения и текущее сообщение.
     switch (lastMessageType) {
         case emoji.smile.type:
             // Smile -> smile.
             if (emoji.smile.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.smile.type;
-                return botResponse.smile.ifSmileMore;
+                newMessageContext = emoji.smile.type;
+                result = botResponse.smile.ifSmileMore;
             }
             // Smile -> sad.
-            if (emoji.sad.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.smile.type;
-                return botResponse.smile.ifSmileToSad;
+            else if (emoji.sad.items.indexOf(text, 0) > -1) {
+                newMessageContext = emoji.sad.type;
+                result = botResponse.smile.ifSmileToSad;
             }
             // Smile -> rage.
-            if (emoji.rage.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.smile.type;
-                return botResponse.smile.ifSmileToRage;
+            else if (emoji.rage.items.indexOf(text, 0) > -1) {
+                newMessageContext = emoji.rage.type;
+                result = botResponse.smile.ifSmileToRage;
             }
             break;
         case emoji.rage.type:
             // Rage -> smile.
             if (emoji.smile.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.rage.type;
-                return botResponse.rage.ifRageToSmile;
+                newMessageContext = emoji.smile.type;
+                result =  botResponse.rage.ifRageToSmile;
             }
             // Rage -> sad.
-            if (emoji.sad.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.rage.type;
-                return  botResponse.rage.ifRageToSad;
+            else if (emoji.sad.items.indexOf(text, 0) > -1) {
+                newMessageContext = emoji.sad.type;
+                result = botResponse.rage.ifRageToSad;
             }
             // Rage -> rage.
-            if (emoji.rage.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.rage.type;
-                return botResponse.rage.ifRageMore;
+            else if (emoji.rage.items.indexOf(text, 0) > -1) {
+                newMessageContext = emoji.rage.type;
+                result = botResponse.rage.ifRageMore;
             }
             break;
         case emoji.sad.type:
             // Sad -> smile.
             if (emoji.smile.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.sad.type;
-                return botResponse.sad.ifSadToSmile;
+                newMessageContext = emoji.sad.type;
+                result = botResponse.sad.ifSadToSmile;
             }
             // Sad -> sad.
-            if (emoji.sad.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.sad.type;
-                return botResponse.sad.ifSadMore;
+            else if (emoji.sad.items.indexOf(text, 0) > -1) {
+                newMessageContext = emoji.sad.type;
+                result = botResponse.sad.ifSadMore;
             }
             // Sad -> rage.
-            if (emoji.rage.items.indexOf(text, 0) > -1) {
-                lastMessageContext = emoji.sad.type;
-                return botResponse.sad.ifSadToRage;
+            else if (emoji.rage.items.indexOf(text, 0) > -1) {
+                newMessageContext = emoji.sad.type;
+                result = botResponse.sad.ifSadToRage;
             }
             break;
         default:
-            break;
+            return;
     }
-    // Нужно вернуть текстовый ответ.
-    return result;
-}
-function isCorrectMessageChecker(messageText) {
-    return true;
+    return [result, newMessageContext];
 }
