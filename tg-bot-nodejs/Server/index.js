@@ -5,25 +5,51 @@ const token = '1143399778:AAFEzQt5NF_ePZ41l97PD7oeHzF7JdFoiso';
 const bot = new TelegramBot(token, {
     polling: true
 });
-
+// Функции работы с бд.
+const mysql_modules = require('./mysql');
 // Объекты с колекциями (ответы бота и тд).
 const collections = require('./collections.js');
 const emoji = collections.emoji();
 const botResponse = collections.botResponse();
 const botCommands = collections.botCommands();
 
-// Функции работы с бд.
-const mysql = require('./mysql');
-
 // Контекст последнего сообщения.
 let lastMessageContext;
-
 // Если это первое сообщение в сессии пользователя, то
 // в сообщении нужно поздороваться.
 let isFirstMessageOnSession = true;
+let time_session_begin = new Date().toISOString().slice(0, 10).replace('T', ' ');
+let time_session_end;
+// Сообщения текущей сессии.
+let messages = [];
+let fromId;
+// Таймер сессии на 1 минуте.
+let timerId = setTimeout(sessionEnd,1000 * 60);
+function sessionEnd()
+{
+    // !!! TO DO: Сохранение в бд не работает.
+    try {
+        time_session_end = new Date().toISOString().slice(0, 10).replace('T', ' ');
+        mysql_modules.insertSessionsToDb(time_session_begin, time_session_end);
+        for (let i = 0; i < messages.length; i++) {
+            mysql_modules.insertMessagesToDb(messages[i], fromId, fromId);
+        }
+    }
+    catch (e) {
+        console.log(e);
+    }
+    messages = [];
+    time_session_begin = new Date().toISOString().slice(0, 10).replace('T', ' ');
+    isFirstMessageOnSession = true;
+}
 
 bot.on('message', (msg) => {
+    // Сообщение получено -> перезапускаем таймер.
+    clearTimeout(timerId);
+    timerId = setTimeout(sessionEnd,1000 * 60);
+
     const chatId = msg.chat.id;
+    fromId = msg.message_id;
     const msgText = msg.text;
     let sendMsg = '';
 
@@ -50,19 +76,18 @@ bot.on('message', (msg) => {
         if (botCommands.indexOf(msgText, 0) > -1)
             return;
 
-        console.log("Error: " + e.text + "->" + e.message);
         sendMsg = botResponse.iDontUnderstand;
         isFirstMessageOnSession = true;
     }
+    messages += sendMsg;
     bot.sendMessage(chatId, sendMsg);
 });
 
 // Команды для работы со статистикой.
+// Команды не считаются за "сообщения".
 bot.onText(/\/stats/, (msg) => {
     const chatId = msg.chat.id;
-
-    // send back the matched "whatever" to the chat
-    bot.sendMessage(chatId,"stats");
+    bot.sendMessage(chatId,"Здесь должна была быть статистика.");
 });
 
 function getResponseOnContext(text, lastMessageType) {

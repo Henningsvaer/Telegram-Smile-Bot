@@ -26,7 +26,7 @@ module.exports = {
                 ifRageToSmile: "Рад за тебя!",
                 ifRageToSad: "Не переживай, иногда бывают сложные дни...",
             },
-            iDontUnderstand: "Я тебя не понимаю."
+            iDontUnderstand: "Я тебя не понимаю"
         };
     },
     // Эмоджи с реакциями.
